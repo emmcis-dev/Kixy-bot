@@ -1,11 +1,6 @@
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require('@whiskeysockets/baileys')
+const qrcode = require('qrcode-terminal')
 const pino = require('pino')
-const fs = require('fs')
-
-// 🔥 LIMPIAR SESIÓN SI SE ROMPE
-if (fs.existsSync('./session')) {
-    fs.rmSync('./session', { recursive: true, force: true })
-}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('./session')
@@ -15,30 +10,15 @@ async function startBot() {
         logger: pino({ level: 'silent' }),
         browser: ['Ubuntu', 'Chrome', '1.0.0'],
         version,
-        auth: state,
-        markOnlineOnConnect: true
+        auth: state
     })
 
-    let codigoGenerado = false
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr } = update
 
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update
-
-        if (connection === 'connecting') {
-            console.log('🔄 Conectando...')
-        }
-
-        // 🔥 GENERAR CÓDIGO CORRECTAMENTE
-        if (!codigoGenerado) {
-            const phoneNumber = "50238829642" // 👈 CAMBIA POR TU NÚMERO
-
-            try {
-                const code = await sock.requestPairingCode(phoneNumber)
-                console.log(`\n📱 CÓDIGO DE VINCULACIÓN:\n👉 ${code}\n`)
-                codigoGenerado = true
-            } catch (e) {
-                console.log("❌ Error generando código:", e.message)
-            }
+        if (qr) {
+            console.log('\n📱 ESCANEA ESTE QR:\n')
+            qrcode.generate(qr) // 🔥 MÁS LEGIBLE
         }
 
         if (connection === 'open') {
@@ -50,58 +30,13 @@ async function startBot() {
             console.log('❌ Conexión cerrada:', reason)
 
             if (reason !== DisconnectReason.loggedOut) {
-                console.log('🔄 Reconectando...')
+                console.log('🔄 Reintentando...')
                 startBot()
             }
         }
     })
 
     sock.ev.on('creds.update', saveCreds)
-
-    // 🔥 LECTOR DE MENSAJES (YA FUNCIONA)
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        try {
-            if (type !== 'notify') return
-
-            const msg = messages[0]
-            if (!msg.message) return
-            if (msg.key.fromMe) return
-
-            const from = msg.key.remoteJid
-
-            const text =
-                msg.message.conversation ||
-                msg.message.extendedTextMessage?.text ||
-                ""
-
-            if (!text) return
-
-            console.log("📩 Mensaje:", text)
-
-            if (!text.startsWith("!")) return
-
-            const cmd = text.slice(1).toLowerCase()
-
-            if (cmd === "ping") {
-                await sock.sendMessage(from, { text: "🏓 Pong funcionando 🔥" })
-            }
-
-            if (cmd === "menu") {
-                await sock.sendMessage(from, {
-                    text: "📜 Menu:\n!ping\n!menu\n!info"
-                })
-            }
-
-            if (cmd === "info") {
-                await sock.sendMessage(from, {
-                    text: "🤖 Bot activo en Railway 🚀"
-                })
-            }
-
-        } catch (err) {
-            console.log("❌ Error:", err)
-        }
-    })
 }
 
 startBot()
