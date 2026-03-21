@@ -1,5 +1,4 @@
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require('@whiskeysockets/baileys')
-const qrcode = require('qrcode-terminal')
 const pino = require('pino')
 
 async function startBot() {
@@ -10,16 +9,12 @@ async function startBot() {
         logger: pino({ level: 'silent' }),
         browser: ['Ubuntu', 'Chrome', '1.0.0'],
         version,
-        auth: state
+        auth: state,
+        markOnlineOnConnect: true
     })
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update
-
-        if (qr) {
-            console.log('\n📱 ESCANEA ESTE QR:\n')
-            qrcode.generate(qr) // 🔥 MÁS LEGIBLE
-        }
+        const { connection, lastDisconnect } = update
 
         if (connection === 'open') {
             console.log('✅ BOT CONECTADO 🔥')
@@ -30,13 +25,57 @@ async function startBot() {
             console.log('❌ Conexión cerrada:', reason)
 
             if (reason !== DisconnectReason.loggedOut) {
-                console.log('🔄 Reintentando...')
                 startBot()
             }
         }
     })
 
     sock.ev.on('creds.update', saveCreds)
+
+    // 🔥 RESPONDER MENSAJES
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        try {
+            if (type !== 'notify') return
+
+            const msg = messages[0]
+            if (!msg.message) return
+            if (msg.key.fromMe) return
+
+            const from = msg.key.remoteJid
+
+            const text =
+                msg.message.conversation ||
+                msg.message.extendedTextMessage?.text ||
+                ""
+
+            if (!text) return
+
+            console.log("📩", text)
+
+            if (!text.startsWith("!")) return
+
+            const cmd = text.slice(1).toLowerCase()
+
+            if (cmd === "ping") {
+                await sock.sendMessage(from, { text: "🏓 Pong funcionando 🔥" })
+            }
+
+            if (cmd === "menu") {
+                await sock.sendMessage(from, {
+                    text: "📜 Menu:\n!ping\n!menu\n!info"
+                })
+            }
+
+            if (cmd === "info") {
+                await sock.sendMessage(from, {
+                    text: "🤖 Bot activo en Railway 🚀"
+                })
+            }
+
+        } catch (err) {
+            console.log("❌ Error:", err)
+        }
+    })
 }
 
 startBot()
