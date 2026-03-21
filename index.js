@@ -1,12 +1,5 @@
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require('@whiskeysockets/baileys')
-const qrcode = require('qrcode-terminal')
 const pino = require('pino')
-const fs = require('fs')
-
-// 🔥 BORRAR SESIÓN SI EXISTE (ARREGLA 401)
-if (fs.existsSync('./session')) {
-    fs.rmSync('./session', { recursive: true, force: true })
-}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('./session')
@@ -17,18 +10,21 @@ async function startBot() {
         browser: ['Ubuntu', 'Chrome', '1.0.0'],
         version,
         auth: state,
-        markOnlineOnConnect: true,
-        printQRInTerminal: true
+        markOnlineOnConnect: true
     })
 
-    // 🔗 CONEXIÓN
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update
+    // 🔥 GENERAR CÓDIGO SIN QR
+    if (!sock.authState.creds.registered) {
+        const phoneNumber = "50238829642" // 👈 TU NÚMERO (con código país)
 
-        if (qr) {
-            console.log('\n📱 ESCANEA ESTE QR:\n')
-            qrcode.generate(qr, { small: true })
-        }
+        setTimeout(async () => {
+            const code = await sock.requestPairingCode(phoneNumber)
+            console.log(`\n📱 CÓDIGO DE VINCULACIÓN:\n👉 ${code}\n`)
+        }, 3000)
+    }
+
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update
 
         if (connection === 'open') {
             console.log('✅ BOT CONECTADO 🔥')
@@ -39,7 +35,6 @@ async function startBot() {
             console.log('❌ Conexión cerrada:', reason)
 
             if (reason !== DisconnectReason.loggedOut) {
-                console.log('🔄 Reconectando...')
                 startBot()
             }
         }
@@ -47,7 +42,7 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds)
 
-    // 🔥 LECTOR DE MENSAJES (CLAVE)
+    // 🔥 RESPUESTA A MENSAJES
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         try {
             if (type !== 'notify') return
@@ -65,30 +60,30 @@ async function startBot() {
 
             if (!text) return
 
-            console.log("📩 Mensaje:", text)
+            console.log("📩", text)
 
             if (!text.startsWith("!")) return
 
-            const command = text.slice(1).toLowerCase()
+            const cmd = text.slice(1).toLowerCase()
 
-            if (command === "ping") {
+            if (cmd === "ping") {
                 await sock.sendMessage(from, { text: "🏓 Pong desde Railway 🔥" })
             }
 
-            if (command === "menu") {
+            if (cmd === "menu") {
                 await sock.sendMessage(from, {
                     text: "📜 Menu:\n!ping\n!menu\n!info"
                 })
             }
 
-            if (command === "info") {
+            if (cmd === "info") {
                 await sock.sendMessage(from, {
-                    text: "🤖 Bot funcionando en Railway 🚀"
+                    text: "🤖 Bot activo correctamente 🚀"
                 })
             }
 
-        } catch (err) {
-            console.log("❌ Error:", err)
+        } catch (e) {
+            console.log("❌ Error:", e)
         }
     })
 }
