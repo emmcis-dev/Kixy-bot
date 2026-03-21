@@ -1,6 +1,12 @@
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require('@whiskeysockets/baileys')
 const qrcode = require('qrcode-terminal')
 const pino = require('pino')
+const fs = require('fs')
+
+// 🔥 BORRAR SESIÓN SI EXISTE (ARREGLA 401)
+if (fs.existsSync('./session')) {
+    fs.rmSync('./session', { recursive: true, force: true })
+}
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('./session')
@@ -8,28 +14,24 @@ async function startBot() {
 
     const sock = makeWASocket({
         logger: pino({ level: 'silent' }),
-        browser: ['Android', 'Chrome', '1.0.0'],
+        browser: ['Ubuntu', 'Chrome', '1.0.0'],
         version,
         auth: state,
         markOnlineOnConnect: true,
-        syncFullHistory: true,
-        emitOwnEvents: true,
-        defaultQueryTimeoutMs: undefined
+        printQRInTerminal: true
     })
 
-    sock.ev.on('connection.update', async (update) => {
+    // 🔗 CONEXIÓN
+    sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update
 
         if (qr) {
-            console.log('\n📱 ESCANEA EL QR:\n')
+            console.log('\n📱 ESCANEA ESTE QR:\n')
             qrcode.generate(qr, { small: true })
         }
 
         if (connection === 'open') {
-            console.log('✅ BOT CONECTADO Y LISTO 🔥')
-
-            // 🔥 FORZAR PRESENCIA (CLAVE)
-            await sock.sendPresenceUpdate('available')
+            console.log('✅ BOT CONECTADO 🔥')
         }
 
         if (connection === 'close') {
@@ -39,15 +41,13 @@ async function startBot() {
             if (reason !== DisconnectReason.loggedOut) {
                 console.log('🔄 Reconectando...')
                 startBot()
-            } else {
-                console.log('🚫 Sesión cerrada, elimina session y escanea de nuevo')
             }
         }
     })
 
     sock.ev.on('creds.update', saveCreds)
 
-    // 🔥 LECTOR FORZADO (FIX REAL)
+    // 🔥 LECTOR DE MENSAJES (CLAVE)
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         try {
             if (type !== 'notify') return
@@ -61,21 +61,18 @@ async function startBot() {
             const text =
                 msg.message.conversation ||
                 msg.message.extendedTextMessage?.text ||
-                msg.message.imageMessage?.caption ||
-                msg.message.videoMessage?.caption ||
                 ""
 
             if (!text) return
 
-            console.log("📩 MENSAJE DETECTADO:", text)
+            console.log("📩 Mensaje:", text)
 
-            const prefix = "!"
-            if (!text.startsWith(prefix)) return
+            if (!text.startsWith("!")) return
 
-            const command = text.slice(1).trim().split(" ")[0].toLowerCase()
+            const command = text.slice(1).toLowerCase()
 
             if (command === "ping") {
-                await sock.sendMessage(from, { text: "🏓 Pong funcionando 🔥" })
+                await sock.sendMessage(from, { text: "🏓 Pong desde Railway 🔥" })
             }
 
             if (command === "menu") {
@@ -86,7 +83,7 @@ async function startBot() {
 
             if (command === "info") {
                 await sock.sendMessage(from, {
-                    text: "🤖 Bot activo correctamente en Termux 🚀"
+                    text: "🤖 Bot funcionando en Railway 🚀"
                 })
             }
 
