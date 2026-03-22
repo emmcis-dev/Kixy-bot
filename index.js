@@ -13,8 +13,13 @@ async function startBot() {
         markOnlineOnConnect: true
     })
 
+    // 🔗 CONEXIÓN
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update
+
+        if (connection === 'connecting') {
+            console.log('🔄 Conectando...')
+        }
 
         if (connection === 'open') {
             console.log('✅ BOT CONECTADO 🔥')
@@ -25,6 +30,7 @@ async function startBot() {
             console.log('❌ Conexión cerrada:', reason)
 
             if (reason !== DisconnectReason.loggedOut) {
+                console.log('🔄 Reconectando...')
                 startBot()
             }
         }
@@ -32,12 +38,10 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds)
 
-    // 🔥 RESPONDER MENSAJES
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    // 🔥 LECTURA DE MENSAJES (FIX DEFINITIVO)
+    sock.ev.on('messages.upsert', async (m) => {
         try {
-            if (type !== 'notify') return
-
-            const msg = messages[0]
+            const msg = m.messages[0]
             if (!msg.message) return
             if (msg.key.fromMe) return
 
@@ -50,12 +54,13 @@ async function startBot() {
 
             if (!text) return
 
-            console.log("📩", text)
+            console.log("📩 Mensaje:", text)
 
             if (!text.startsWith("!")) return
 
             const cmd = text.slice(1).toLowerCase()
 
+            // 🔥 COMANDOS
             if (cmd === "ping") {
                 await sock.sendMessage(from, { text: "🏓 Pong funcionando 🔥" })
             }
@@ -68,7 +73,7 @@ async function startBot() {
 
             if (cmd === "info") {
                 await sock.sendMessage(from, {
-                    text: "🤖 Bot activo en Railway 🚀"
+                    text: "🤖 Bot activo correctamente en Railway 🚀"
                 })
             }
 
@@ -79,3 +84,4 @@ async function startBot() {
 }
 
 startBot()
+
