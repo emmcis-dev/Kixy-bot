@@ -10,38 +10,39 @@ async function startBot() {
         browser: ['Ubuntu', 'Chrome', '1.0.0'],
         version,
         auth: state,
-        markOnlineOnConnect: true
+        syncFullHistory: true // 🔥 IMPORTANTE
     })
 
-    // 🔗 CONEXIÓN
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update
+    sock.ev.process(async (events) => {
 
-        if (connection === 'connecting') {
-            console.log('🔄 Conectando...')
-        }
+        // 🔗 CONEXIÓN
+        if (events['connection.update']) {
+            const { connection, lastDisconnect } = events['connection.update']
 
-        if (connection === 'open') {
-            console.log('✅ BOT CONECTADO 🔥')
-        }
+            if (connection === 'open') {
+                console.log('✅ BOT CONECTADO 🔥')
+            }
 
-        if (connection === 'close') {
-            const reason = lastDisconnect?.error?.output?.statusCode
-            console.log('❌ Conexión cerrada:', reason)
+            if (connection === 'close') {
+                const reason = lastDisconnect?.error?.output?.statusCode
+                console.log('❌ Conexión cerrada:', reason)
 
-            if (reason !== DisconnectReason.loggedOut) {
-                console.log('🔄 Reconectando...')
-                startBot()
+                if (reason !== DisconnectReason.loggedOut) {
+                    startBot()
+                }
             }
         }
-    })
 
-    sock.ev.on('creds.update', saveCreds)
+        // 💾 GUARDAR SESIÓN
+        if (events['creds.update']) {
+            await saveCreds()
+        }
 
-    // 🔥 LECTURA DE MENSAJES (FIX DEFINITIVO)
-    sock.ev.on('messages.upsert', async (m) => {
-        try {
+        // 🔥 MENSAJES (FIX REAL)
+        if (events['messages.upsert']) {
+            const m = events['messages.upsert']
             const msg = m.messages[0]
+
             if (!msg.message) return
             if (msg.key.fromMe) return
 
@@ -60,7 +61,6 @@ async function startBot() {
 
             const cmd = text.slice(1).toLowerCase()
 
-            // 🔥 COMANDOS
             if (cmd === "ping") {
                 await sock.sendMessage(from, { text: "🏓 Pong funcionando 🔥" })
             }
@@ -73,15 +73,11 @@ async function startBot() {
 
             if (cmd === "info") {
                 await sock.sendMessage(from, {
-                    text: "🤖 Bot activo correctamente en Railway 🚀"
+                    text: "🤖 Bot activo correctamente 🚀"
                 })
             }
-
-        } catch (err) {
-            console.log("❌ Error:", err)
         }
     })
 }
 
 startBot()
-
